@@ -93,7 +93,7 @@ impl View for RichText {
     }
 
     fn compute_layout(&mut self, _cx: &mut crate::context::ComputeLayoutCx) -> Option<Rect> {
-        let layout = self.id.get_layout().unwrap_or_default();
+        let layout = self.id.get_layout()?;
         let view_state = self.id.state();
         let (padding_left, padding_right) = {
             let view_state = view_state.borrow();
@@ -142,7 +142,7 @@ impl View for RichText {
             .borrow_mut()
             .layout(text_node)
             .cloned()
-            .unwrap_or_default()
+            .unwrap()
             .location;
         let point = Point::new(location.x as f64, location.y as f64);
         if let Some(text_layout) = self.available_text_layout.as_ref() {

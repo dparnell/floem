@@ -242,7 +242,7 @@ impl WindowHandle {
 
             {
                 let window_origin = id.state().borrow().window_origin;
-                let layout = id.get_layout().unwrap_or_default();
+                let layout = id.get_layout().unwrap();
                 let viewport = id.state().borrow().viewport.unwrap_or_default();
                 cx.unconditional_view_event(
                     id,
@@ -952,7 +952,7 @@ impl WindowHandle {
     }
 
     fn process_update_anim_prop(&mut self, view_id: ViewId, kind: AnimPropKind, val: AnimValue) {
-        let layout = view_id.get_layout().unwrap_or_default();
+        let layout = view_id.get_layout().unwrap();
         let view_state = view_id.state();
         let prop = match kind {
             AnimPropKind::Scale => todo!(),

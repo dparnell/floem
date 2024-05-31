@@ -378,7 +378,7 @@ impl TextInput {
     }
 
     fn get_box_position(&self, pos_x: f64, pos_y: f64) -> usize {
-        let layout = self.id.get_layout().unwrap_or_default();
+        let layout = self.id.get_layout().unwrap();
         let view_state = self.id.state();
         let view_state = view_state.borrow();
         let style = view_state.combined_style.builtin();
@@ -535,7 +535,7 @@ impl TextInput {
             .borrow()
             .layout(text_node)
             .cloned()
-            .unwrap_or_default();
+            .unwrap();
         let len = self.buffer.with(|val| val.len());
         self.cursor_glyph_idx = len;
 
@@ -845,7 +845,7 @@ impl TextInput {
             .borrow()
             .layout(text_node)
             .cloned()
-            .unwrap_or_default();
+            .unwrap();
         let node_location = layout.location;
         let text_start_point = Point::new(node_location.x as f64, node_location.y as f64);
         cx.draw_text(placeholder_buff, text_start_point);
@@ -1051,8 +1051,7 @@ impl View for TextInput {
 
             let text_node = self.text_node.unwrap();
 
-            // FIXME: This layout is undefined.
-            let layout = self.id.get_layout().unwrap_or_default();
+            let layout = self.id.get_layout().unwrap_or(Layout::new());
             let view_state = self.id.state();
             let view_state = view_state.borrow();
             let style = view_state.combined_style.builtin();
@@ -1121,8 +1120,7 @@ impl View for TextInput {
             .taffy()
             .borrow()
             .layout(text_node)
-            .cloned()
-            .unwrap_or_default();
+            .cloned().ok()?;
         let node_width = node_layout.size.width as f64;
 
         if buf_width > node_width {
@@ -1159,7 +1157,7 @@ impl View for TextInput {
             .borrow()
             .layout(text_node)
             .cloned()
-            .unwrap_or_default();
+            .unwrap();
 
         let location = node_layout.location;
         let text_start_point = Point::new(location.x as f64, location.y as f64);

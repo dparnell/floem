@@ -724,7 +724,7 @@ impl<'a> ComputeLayoutCx<'a> {
 
         self.save();
 
-        let layout = id.get_layout().unwrap_or_default();
+        let layout = id.get_layout()?;
         let origin = Point::new(layout.location.x as f64, layout.location.y as f64);
         let this_viewport = view_state.borrow().viewport;
         let this_viewport_origin = this_viewport.unwrap_or_default().origin().to_vec2();

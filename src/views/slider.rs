@@ -235,7 +235,7 @@ impl View for Slider {
         _cx: &mut crate::context::ComputeLayoutCx,
     ) -> Option<peniko::kurbo::Rect> {
         self.update_restrict_position();
-        let layout = self.id.get_layout().unwrap_or_default();
+        let layout = self.id.get_layout()?;
 
         self.size = layout.size;
 

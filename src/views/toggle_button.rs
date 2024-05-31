@@ -216,7 +216,7 @@ impl View for ToggleButton {
         &mut self,
         _cx: &mut crate::context::ComputeLayoutCx,
     ) -> Option<peniko::kurbo::Rect> {
-        let layout = self.id.get_layout().unwrap_or_default();
+        let layout = self.id.get_layout()?;
         let size = layout.size;
         self.width = size.width;
         let circle_radius = match self.style.circle_rad() {
@@ -236,7 +236,7 @@ impl View for ToggleButton {
     }
 
     fn paint(&mut self, cx: &mut crate::context::PaintCx) {
-        let layout = self.id.get_layout().unwrap_or_default();
+        let layout = self.id.get_layout().unwrap();
         let size = Size::new(layout.size.width as f64, layout.size.height as f64);
         let circle_point = Point::new(self.position as f64, size.to_rect().center().y);
         let circle = crate::kurbo::Circle::new(circle_point, self.radius as f64);

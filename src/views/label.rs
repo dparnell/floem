@@ -220,7 +220,7 @@ impl View for Label {
             return None;
         }
 
-        let layout = self.id.get_layout().unwrap_or_default();
+        let layout = self.id.get_layout()?;
         let (text_overflow, padding) = {
             let view_state = self.id.state();
             let view_state = view_state.borrow();
@@ -307,7 +307,7 @@ impl View for Label {
             .borrow()
             .layout(text_node)
             .cloned()
-            .unwrap_or_default()
+            .unwrap()
             .location;
         let point = Point::new(location.x as f64, location.y as f64);
         if let Some(text_layout) = self.available_text_layout.as_ref() {

@@ -46,7 +46,7 @@ pub struct CapturedView {
 impl CapturedView {
     pub fn capture(id: ViewId, app_state: &mut AppState, clip: Rect) -> Self {
         let layout = id.layout_rect();
-        let taffy = id.get_layout().unwrap_or_default();
+        let taffy = id.get_layout().unwrap();
         let view_state = id.state();
         let view_state = view_state.borrow();
         let computed_style = view_state.combined_style.clone();
