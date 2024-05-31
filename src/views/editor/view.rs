@@ -794,7 +794,7 @@ impl View for EditorView {
         self.id
     }
 
-    fn style(&mut self, cx: &mut crate::context::StyleCx<'_>) {
+    fn style_pass(&mut self, cx: &mut crate::context::StyleCx<'_>) {
         self.editor.with_untracked(|ed| {
             ed.es.update(|s| {
                 if s.read(cx) {
@@ -950,6 +950,7 @@ pub fn editor_view(
         is_active,
         inner_node: None,
     }
+    .keyboard_navigatable()
     .on_event(EventListener::ImePreedit, move |event| {
         if !is_active.get_untracked() {
             return EventPropagation::Continue;

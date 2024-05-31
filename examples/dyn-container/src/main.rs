@@ -21,7 +21,7 @@ fn view_two(view: RwSignal<ViewSwitcher>) -> impl IntoView {
             view.set(ViewSwitcher::One);
         }),
     ))
-    .style(|s| s.gap(0.0, 10.0))
+    .style(|s| s.column_gap(10.0))
 }
 
 fn app_view() -> impl IntoView {
@@ -40,10 +40,13 @@ fn app_view() -> impl IntoView {
                 })
                 .style(|s| s.margin_bottom(20)),
         )),
-        dyn_container(move || match view.get() {
-            ViewSwitcher::One => view_one().into_any(),
-            ViewSwitcher::Two => view_two(view).into_any(),
-        })
+        dyn_container(
+            move || view.get(),
+            move |view_value| match view_value {
+                ViewSwitcher::One => view_one().into_any(),
+                ViewSwitcher::Two => view_two(view).into_any(),
+            },
+        )
         .style(|s| s.padding(10).border(1)),
     ))
     .style(|s| {
@@ -51,7 +54,7 @@ fn app_view() -> impl IntoView {
             .height_full()
             .items_center()
             .justify_center()
-            .gap(10, 0)
+            .row_gap(10)
     })
 }
 

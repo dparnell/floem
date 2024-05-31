@@ -396,6 +396,26 @@ impl<R: StylePropReader> ExtratorField<R> {
     }
 }
 
+impl<R: StylePropReader> PartialEq for ExtratorField<R>
+where
+    R::Type: PartialEq,
+{
+    fn eq(&self, other: &Self) -> bool {
+        self.get() == other.get()
+    }
+}
+
+impl<R: StylePropReader> Eq for ExtratorField<R> where R::Type: Eq {}
+
+impl<R: StylePropReader> std::hash::Hash for ExtratorField<R>
+where
+    R::Type: std::hash::Hash,
+{
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.get().hash(state)
+    }
+}
+
 #[macro_export]
 macro_rules! prop {
     ($v:vis $name:ident: $ty:ty { $($options:tt)* } = $default:expr
@@ -429,12 +449,13 @@ macro_rules! prop {
 #[macro_export]
 macro_rules! prop_extractor {
     (
-        $vis:vis $name:ident {
+        $(#[$attrs:meta])* $vis:vis $name:ident {
             $($prop_vis:vis $prop:ident: $reader:ty),*
             $(,)?
         }
     ) => {
         #[derive(Debug, Clone)]
+        $(#[$attrs])?
         $vis struct $name {
             $(
                 $prop_vis $prop: $crate::style::ExtratorField<$reader>,
@@ -1331,14 +1352,45 @@ impl Style {
         self.height(height.pct())
     }
 
-    pub fn gap(self, width: impl Into<PxPct>, height: impl Into<PxPct>) -> Self {
-        let width: PxPct = width.into();
-        let height: PxPct = height.into();
+    pub fn row_gap(self, width: impl Into<PxPct>) -> Self {
+        let gap_height = self.get(Gap).height;
         self.set(
             Gap,
             Size {
-                width: width.into(),
-                height: height.into(),
+                width: width.into().into(),
+                height: gap_height,
+            },
+        )
+    }
+
+    pub fn column_gap(self, height: impl Into<PxPct>) -> Self {
+        let gap_width = self.get(Gap).width;
+        self.set(
+            Gap,
+            Size {
+                width: gap_width,
+                height: height.into().into(),
+            },
+        )
+    }
+
+    pub fn row_col_gap(self, width: impl Into<PxPct>, height: impl Into<PxPct>) -> Self {
+        self.set(
+            Gap,
+            Size {
+                width: width.into().into(),
+                height: height.into().into(),
+            },
+        )
+    }
+
+    pub fn gap(self, gap: impl Into<PxPct>) -> Self {
+        let gap = gap.into();
+        self.set(
+            Gap,
+            Size {
+                width: gap.into(),
+                height: gap.into(),
             },
         )
     }

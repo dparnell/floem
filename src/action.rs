@@ -21,8 +21,7 @@ pub use crate::file_action::*;
 pub(crate) fn add_update_message(msg: UpdateMessage) {
     let current_view = get_current_view();
     UPDATE_MESSAGES.with_borrow_mut(|msgs| {
-        let msgs = msgs.entry(current_view).or_default();
-        msgs.push(msg);
+        msgs.entry(current_view).or_default().push(msg);
     });
 }
 

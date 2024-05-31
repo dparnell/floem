@@ -17,6 +17,7 @@ use crate::{
     view::View,
     window::WindowConfig,
     window_handle::WindowHandle,
+    window_id::process_window_updates,
 };
 
 pub(crate) struct ApplicationHandle {
@@ -240,6 +241,7 @@ impl ApplicationHandle {
                 }
             }
         }
+        self.handle_updates_for_all_windows();
     }
 
     pub(crate) fn new_window(
@@ -279,6 +281,19 @@ impl ApplicationHandle {
                     window_builder = window_builder.with_decorations(false);
                 }
             }
+            if let Some(undecorated) = config.undecorated {
+                window_builder = window_builder.with_decorations(!undecorated);
+                #[cfg(target_os = "macos")]
+                if undecorated {
+                    use floem_winit::platform::macos::WindowBuilderExtMacOS;
+                    // A palette-style window that will only obtain window focus but
+                    // not actually propagate the first mouse click it receives is
+                    // very unlikely to be expected behavior - these typically are
+                    // used for something that offers a quick choice and are closed
+                    // in a single pointer gesture.
+                    window_builder = window_builder.with_accepts_first_mouse(true);
+                }
+            }
             if let Some(transparent) = config.transparent {
                 window_builder = window_builder.with_transparent(transparent);
             }
@@ -291,10 +306,51 @@ impl ApplicationHandle {
             if let Some(title) = config.title {
                 window_builder = window_builder.with_title(title);
             }
+            if let Some(window_icon) = config.window_icon {
+                window_builder = window_builder.with_window_icon(Some(window_icon));
+            }
+            #[cfg(target_os = "macos")]
+            if let Some(mac) = config.mac_os_config {
+                use floem_winit::platform::macos::WindowBuilderExtMacOS;
+                if let Some(val) = mac.movable_by_window_background {
+                    window_builder = window_builder.with_movable_by_window_background(val);
+                }
+                if let Some(val) = mac.titlebar_transparent {
+                    window_builder = window_builder.with_titlebar_transparent(val);
+                }
+                if let Some(val) = mac.titlebar_hidden {
+                    window_builder = window_builder.with_titlebar_hidden(val);
+                }
+                if let Some(val) = mac.full_size_content_view {
+                    window_builder = window_builder.with_fullsize_content_view(val);
+                }
+                if let Some(val) = mac.movable {
+                    window_builder = window_builder.with_movable(val);
+                }
+                if let Some((x, y)) = mac.traffic_lights_offset {
+                    window_builder = window_builder.with_traffic_lights_offset(x, y);
+                }
+                if let Some(val) = mac.accepts_first_mouse {
+                    window_builder = window_builder.with_accepts_first_mouse(val);
+                }
+                if let Some(val) = mac.option_as_alt {
+                    window_builder = window_builder.with_option_as_alt(val.into());
+                }
+                if let Some(title) = mac.tabbing_identifier {
+                    window_builder = window_builder.with_tabbing_identifier(title.as_str());
+                }
+                if let Some(disallow_hidpi) = mac.disallow_high_dpi {
+                    window_builder = window_builder.with_disallow_hidpi(disallow_hidpi);
+                }
+                if let Some(shadow) = mac.has_shadow {
+                    window_builder = window_builder.with_has_shadow(shadow);
+                }
+            }
             config.apply_default_theme.unwrap_or(true)
         } else {
             true
         };
+
         let result = window_builder.build(event_loop);
         let window = match result {
             Ok(window) => window,
@@ -332,8 +388,13 @@ impl ApplicationHandle {
         while let Some(trigger) = { EXT_EVENT_HANDLER.queue.lock().pop_front() } {
             trigger.notify();
         }
-        for (_, handle) in self.window_handles.iter_mut() {
+        self.handle_updates_for_all_windows();
+    }
+
+    fn handle_updates_for_all_windows(&mut self) {
+        for (window_id, handle) in self.window_handles.iter_mut() {
             handle.process_update();
+            while process_window_updates(window_id) {}
         }
     }
 
@@ -372,9 +433,7 @@ impl ApplicationHandle {
                     (timer.action)(token);
                 }
             }
-            for (_, handle) in self.window_handles.iter_mut() {
-                handle.process_update();
-            }
+            self.handle_updates_for_all_windows();
         }
         self.fire_timer(event_loop);
     }

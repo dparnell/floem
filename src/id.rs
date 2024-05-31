@@ -6,23 +6,24 @@
 
 use std::{any::Any, cell::RefCell, rc::Rc};
 
+use floem_winit::window::WindowId;
 use peniko::kurbo::{Insets, Point, Rect, Size};
 use slotmap::new_key_type;
 use taffy::{Display, Layout, NodeId, TaffyTree};
 
 use crate::{
-    action::add_update_message,
     animate::Animation,
     context::{EventCallback, ResizeCallback},
     event::{EventListener, EventPropagation},
     menu::Menu,
     style::{DisplayProp, Style, StyleClassRef, StyleSelector},
     unit::PxPct,
-    update::{UpdateMessage, DEFERRED_UPDATE_MESSAGES},
+    update::{UpdateMessage, CENTRAL_DEFERRED_UPDATE_MESSAGES, CENTRAL_UPDATE_MESSAGES},
     view::{IntoView, View},
     view_state::{ChangeFlags, StackOffset, ViewState},
     view_storage::VIEW_STORAGE,
-    window_handle::get_current_view,
+    window_tracking::window_id_for_root,
+    ScreenLayout,
 };
 
 new_key_type! {
@@ -62,6 +63,10 @@ impl ViewId {
 
     pub fn taffy_layout(&self, node: NodeId) -> Option<taffy::Layout> {
         self.taffy().borrow().layout(node).cloned().ok()
+    }
+
+    pub fn taffy_node(&self) -> NodeId {
+        self.state().borrow().node
     }
 
     pub(crate) fn state(&self) -> Rc<RefCell<ViewState>> {
@@ -147,6 +152,17 @@ impl ViewId {
         VIEW_STORAGE.with_borrow(|s| s.parent.get(*self).cloned().flatten())
     }
 
+    pub(crate) fn root(&self) -> Option<ViewId> {
+        VIEW_STORAGE.with_borrow_mut(|s| {
+            if let Some(root) = s.root.get(*self) {
+                return *root;
+            }
+            let root_view_id = s.root_view_id(*self);
+            s.root.insert(*self, root_view_id);
+            root_view_id
+        })
+    }
+
     pub fn layout_rect(&self) -> Rect {
         self.state().borrow().layout_rect
     }
@@ -163,7 +179,7 @@ impl ViewId {
 
     /// Returns the layout rect excluding borders, padding and position.
     /// This is relative to the view.
-    pub fn get_content_rect(&mut self) -> Rect {
+    pub fn get_content_rect(&self) -> Rect {
         let size = self
             .get_layout()
             .map(|layout| layout.size)
@@ -239,8 +255,13 @@ impl ViewId {
         self.request_changes(ChangeFlags::LAYOUT)
     }
 
+    /// Get the window id of the window containing this view, if there is one.
+    pub fn window_id(&self) -> Option<WindowId> {
+        self.root().and_then(window_id_for_root)
+    }
+
     pub fn request_paint(&self) {
-        add_update_message(UpdateMessage::RequestPaint);
+        self.add_update_message(UpdateMessage::RequestPaint);
     }
 
     /// request that this node be styled again
@@ -268,11 +289,11 @@ impl ViewId {
     }
 
     pub fn request_focus(&self) {
-        add_update_message(UpdateMessage::Focus(*self));
+        self.add_update_message(UpdateMessage::Focus(*self));
     }
 
     pub fn clear_focus(&self) {
-        add_update_message(UpdateMessage::ClearFocus(*self));
+        self.add_update_message(UpdateMessage::ClearFocus(*self));
     }
 
     pub fn update_context_menu(&self, menu: impl Fn() -> Menu + 'static) {
@@ -284,26 +305,30 @@ impl ViewId {
     }
 
     pub fn request_active(&self) {
-        add_update_message(UpdateMessage::Active(*self));
+        self.add_update_message(UpdateMessage::Active(*self));
+    }
+
+    pub fn clear_active(&self) {
+        self.add_update_message(UpdateMessage::ClearActive(*self));
     }
 
     pub fn inspect(&self) {
-        add_update_message(UpdateMessage::Inspect);
+        self.add_update_message(UpdateMessage::Inspect);
     }
 
     pub fn scroll_to(&self, rect: Option<Rect>) {
-        add_update_message(UpdateMessage::ScrollTo { id: *self, rect });
+        self.add_update_message(UpdateMessage::ScrollTo { id: *self, rect });
     }
 
     pub fn update_animation(&self, animation: Animation) {
-        add_update_message(UpdateMessage::Animation {
+        self.add_update_message(UpdateMessage::Animation {
             id: *self,
             animation,
         });
     }
 
     pub fn update_state(&self, state: impl Any) {
-        add_update_message(UpdateMessage::State {
+        self.add_update_message(UpdateMessage::State {
             id: *self,
             state: Box::new(state),
         });
@@ -386,25 +411,40 @@ impl ViewId {
     }
 
     pub fn update_disabled(&self, is_disabled: bool) {
-        add_update_message(UpdateMessage::Disabled {
+        self.add_update_message(UpdateMessage::Disabled {
             id: *self,
             is_disabled,
         });
     }
 
     pub fn keyboard_navigatable(&self) {
-        add_update_message(UpdateMessage::KeyboardNavigable { id: *self });
+        self.add_update_message(UpdateMessage::KeyboardNavigable { id: *self });
     }
 
     pub fn draggable(&self) {
-        add_update_message(UpdateMessage::Draggable { id: *self });
+        self.add_update_message(UpdateMessage::Draggable { id: *self });
+    }
+
+    /// Alter the visibility of the current window the view represented by this ID
+    /// is in.
+    pub fn window_visible(&self, visible: bool) {
+        self.add_update_message(UpdateMessage::WindowVisible(visible));
+    }
+
+    fn add_update_message(&self, msg: UpdateMessage) {
+        CENTRAL_UPDATE_MESSAGES.with_borrow_mut(|msgs| {
+            msgs.push((*self, msg));
+        });
     }
 
     pub fn update_state_deferred(&self, state: impl Any) {
-        let current_view = get_current_view();
-        DEFERRED_UPDATE_MESSAGES.with_borrow_mut(|msgs| {
-            let msgs = msgs.entry(current_view).or_default();
+        CENTRAL_DEFERRED_UPDATE_MESSAGES.with_borrow_mut(|msgs| {
             msgs.push((*self, Box::new(state)));
         });
+    }
+
+    /// Get a layout in screen-coordinates for this view, if possible.
+    pub fn screen_layout(&self) -> Option<ScreenLayout> {
+        crate::screen_layout::try_create_screen_layout(self)
     }
 }

@@ -38,12 +38,14 @@ use crate::{
     style::{CursorStyle, Style, StyleSelector},
     theme::{default_theme, Theme},
     update::{
-        UpdateMessage, ANIM_UPDATE_MESSAGES, CURRENT_RUNNING_VIEW_HANDLE, DEFERRED_UPDATE_MESSAGES,
+        UpdateMessage, ANIM_UPDATE_MESSAGES, CENTRAL_DEFERRED_UPDATE_MESSAGES,
+        CENTRAL_UPDATE_MESSAGES, CURRENT_RUNNING_VIEW_HANDLE, DEFERRED_UPDATE_MESSAGES,
         UPDATE_MESSAGES,
     },
     view::{default_compute_layout, view_tab_navigation, IntoView, View},
     view_state::ChangeFlags,
     views::Decorators,
+    window_tracking::{remove_window_id_mapping, store_window_id_mapping},
 };
 
 /// The top-level window handle that owns the winit Window.
@@ -119,6 +121,7 @@ impl WindowHandle {
         id.set_view(view.into_any());
 
         let window = Arc::new(window);
+        store_window_id_mapping(id, window_id, &window);
         let paint_state = PaintState::new(window.clone(), scale, size.get_untracked() * scale);
         let mut window_handle = Self {
             window: Some(window),
@@ -143,6 +146,9 @@ impl WindowHandle {
             last_pointer_down: None,
         };
         window_handle.app_state.set_root_size(size.get_untracked());
+        if let Some(theme) = theme.get_untracked() {
+            window_handle.event(Event::ThemeChanged(theme));
+        }
         window_handle
     }
 
@@ -335,6 +341,7 @@ impl WindowHandle {
 
     pub(crate) fn os_theme_changed(&mut self, theme: floem_winit::window::Theme) {
         self.os_theme.set(Some(theme));
+        self.event(Event::ThemeChanged(theme));
     }
 
     pub(crate) fn size(&mut self, size: Size) {
@@ -690,8 +697,40 @@ impl WindowHandle {
         paint || mem::take(&mut self.app_state.request_paint)
     }
 
+    fn process_central_messages(&self) {
+        CENTRAL_UPDATE_MESSAGES.with_borrow_mut(|central_msgs| {
+            if !central_msgs.is_empty() {
+                UPDATE_MESSAGES.with_borrow_mut(|msgs| {
+                    let central_msgs = std::mem::take(&mut *central_msgs);
+                    for (id, msg) in central_msgs {
+                        if let Some(root) = id.root() {
+                            let msgs = msgs.entry(root).or_default();
+                            msgs.push(msg);
+                        }
+                    }
+                });
+            }
+        });
+
+        CENTRAL_DEFERRED_UPDATE_MESSAGES.with(|central_msgs| {
+            if !central_msgs.borrow().is_empty() {
+                DEFERRED_UPDATE_MESSAGES.with(|msgs| {
+                    let mut msgs = msgs.borrow_mut();
+                    let central_msgs = std::mem::take(&mut *central_msgs.borrow_mut());
+                    for (id, msg) in central_msgs {
+                        if let Some(root) = id.root() {
+                            let msgs = msgs.entry(root).or_default();
+                            msgs.push((id, msg));
+                        }
+                    }
+                });
+            }
+        });
+    }
+
     fn process_update_messages(&mut self) {
         loop {
+            self.process_central_messages();
             let msgs =
                 UPDATE_MESSAGES.with(|msgs| msgs.borrow_mut().remove(&self.id).unwrap_or_default());
             if msgs.is_empty() {
@@ -732,6 +771,11 @@ impl WindowHandle {
 
                         if cx.app_state.has_style_for_sel(id, StyleSelector::Active) {
                             id.request_style_recursive();
+                        }
+                    }
+                    UpdateMessage::ClearActive(id) => {
+                        if Some(id) == cx.app_state.active {
+                            cx.app_state.active = None;
                         }
                     }
                     UpdateMessage::ScrollTo { id, rect } => {
@@ -886,12 +930,18 @@ impl WindowHandle {
                         cx.app_state.remove_view(id);
                         self.id.request_all();
                     }
+                    UpdateMessage::WindowVisible(visible) => {
+                        if let Some(window) = self.window.as_ref() {
+                            window.set_visible(visible);
+                        }
+                    }
                 }
             }
         }
     }
 
     fn process_deferred_update_messages(&mut self) {
+        self.process_central_messages();
         let msgs = DEFERRED_UPDATE_MESSAGES
             .with(|msgs| msgs.borrow_mut().remove(&self.id).unwrap_or_default());
         let mut cx = UpdateCx {
@@ -1084,6 +1134,7 @@ impl WindowHandle {
     pub(crate) fn destroy(&mut self) {
         self.event(Event::WindowClosed);
         self.scope.dispose();
+        remove_window_id_mapping(&self.id, &self.window_id);
     }
 
     #[cfg(target_os = "macos")]

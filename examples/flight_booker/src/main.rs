@@ -84,13 +84,16 @@ pub fn app_view() -> impl IntoView {
         })
         .on_click_stop(move |_| did_booking.set(true));
 
-    let success_message = dyn_container(move || match (did_booking.get(), flight_mode.get()) {
-        (true, FlightMode::OneWay) => text(oneway_message(start_text.get())).into_any(),
-        (true, FlightMode::Return) => {
-            text(return_message(start_text.get(), return_text.get())).into_any()
-        }
-        (false, _) => empty().into_any(),
-    });
+    let success_message = dyn_container(
+        move || (did_booking.get(), flight_mode.get()),
+        move |value| match value {
+            (true, FlightMode::OneWay) => text(oneway_message(start_text.get())).into_any(),
+            (true, FlightMode::Return) => {
+                text(return_message(start_text.get(), return_text.get())).into_any()
+            }
+            (false, _) => empty().into_any(),
+        },
+    );
 
     v_stack((
         mode_picker,
@@ -99,7 +102,7 @@ pub fn app_view() -> impl IntoView {
         book_button,
         success_message,
     ))
-    .style(|s| s.gap(0, 5))
+    .style(|s| s.column_gap(5))
     .style(|s| {
         s.size(100.pct(), 100.pct())
             .flex_col()

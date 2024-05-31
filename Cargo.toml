@@ -18,8 +18,7 @@ rust-version = "1.75"
 license.workspace = true
 
 [workspace.dependencies]
-peniko = "0.1.0"
-kurbo = { version = "0.11", features = ["serde"] }
+peniko = { version = "0.1.1", features = ["serde"] }
 serde = "1.0"
 lapce-xi-rope = { version = "0.3.2", features = ["serde"] }
 strum = { version = "0.26.2" }
@@ -44,10 +43,10 @@ taffy = { version = "0.4", features = ["grid"] }
 rfd = { version = "0.14.0", default-features = false, features = [
     "xdg-portal",
 ], optional = true }
+tokio = { version = "1", features = ["sync", "rt"], optional = true }
 raw-window-handle = { workspace = true }
 unicode-segmentation = "1.10.0"
 peniko = { workspace = true }
-kurbo = { workspace = true }
 crossbeam-channel = "0.5.6"
 im-rc = "15.1.0"
 serde = { workspace = true, optional = true }
@@ -94,6 +93,8 @@ image-qoi = ["image/qoi"]
 image-tga = ["image/tga"]
 image-tiff = ["image/tiff"]
 image-webp = ["image/webp"]
+
+tokio = ["dep:tokio"]
 
 # rfd (file dialog) async runtime
 rfd-async-std = ["dep:rfd", "rfd/async-std"]
